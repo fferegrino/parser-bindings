@@ -1,0 +1,18 @@
+[build-system]
+requires = ["maturin>=1,<2"]
+build-backend = "maturin"
+
+[project]
+name = "rslib"
+requires-python = ">=3.12"
+version = "0.1.0"
+classifiers = [
+    "Programming Language :: Rust",
+    "Programming Language :: Python :: Implementation :: CPython",
+    "Programming Language :: Python :: Implementation :: PyPy",
+]
+
+[dependency-groups]
+dev = [
+    "maturin>=1.8.6",
+]

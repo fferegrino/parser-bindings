@@ -1,5 +1,5 @@
 version = 1
-requires-python = ">=3.13"
+requires-python = ">=3.12"
 
 [[package]]
 name = "colorama"
@@ -38,7 +38,7 @@ wheels = [
 ]
 
 [[package]]
-name = "pyparser"
+name = "pylib"
 version = "0.1.0"
 source = { editable = "." }
 

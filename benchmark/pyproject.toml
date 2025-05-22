@@ -1,0 +1,18 @@
+[project]
+name = "benchmark"
+version = "0.1.0"
+description = "Add your description here"
+requires-python = ">=3.12"
+dependencies = [
+    "pylib",
+    "rslib",
+]
+
+[tool.uv.sources]
+pylib = { path = "../pylib/dist/pylib-0.1.0-py3-none-any.whl" }
+rslib = { path = "../rslib/target/wheels/rslib-0.1.0-cp312-cp312-macosx_11_0_arm64.whl" }
+
+[dependency-groups]
+dev = [
+    "ruff>=0.11.11",
+]
