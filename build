@@ -1,0 +1,17 @@
+#! /bin/bash
+
+# Build Rust library
+cd rslib
+uv run maturin build
+cd ..
+
+# Build Python library
+cd pylib
+uv build
+cd ..
+
+# Delete benchmark lock
+cd benchmark
+rm uv.lock
+uv sync
+cd ..

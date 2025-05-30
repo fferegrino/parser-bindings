@@ -1,8 +1,12 @@
-use nom::{
-    IResult, bytes::complete::tag, bytes::complete::take_until, character::complete::alpha1,
+use pyo3::prelude::{
+    Bound, PyModule, PyResult, pyclass, pyfunction, pymethods, pymodule, wrap_pyfunction,
 };
-use pyo3::prelude::{Bound, PyModule, PyResult, pyclass, pyfunction, pymodule, wrap_pyfunction};
+// use pyo3::prelude::*;
 use pyo3::types::PyModuleMethods;
+use std::fs::File;
+use std::io::{BufRead, BufReader};
+
+use regex::Regex;
 
 // --- LogEntry Struct ---
 #[pyclass]
@@ -16,56 +20,92 @@ pub struct LogEntry {
     pub message: String,
 }
 
-// --- Rust Parsing Function ---
-fn _parse_log_line(input: &str) -> IResult<&str, LogEntry> {
-    let log_levels = ["INFO", "WARN", "ERROR", "DEBUG"];
+#[pyclass]
+pub struct Parser {
+    pattern: Regex,
+}
 
-    let space = tag(" ");
-    let (input, _) = tag("[")(input)?;
-    let (input, date) = take_until(" ")(input)?;
-    let (input, _) = space(input)?;
-    let (input, time) = take_until("]")(input)?;
-    let (input, _) = tag("]")(input)?;
-    let (input, _) = space(input)?;
-    let (input, level) = alpha1(input)?;
-
-    match log_levels.contains(&level) {
-        true => (),
-        false => {
-            return Err(nom::Err::Error(nom::error::Error::new(
-                input,
-                nom::error::ErrorKind::IsNot,
-            )));
+#[pymethods]
+impl Parser {
+    #[new]
+    pub fn new() -> Self {
+        Self {
+            pattern: Regex::new(
+                r"\[(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})\] (INFO|WARN|ERROR|DEBUG): (.*)",
+            )
+            .unwrap(),
         }
     }
 
-    let (input, _) = tag(": ")(input)?;
-    let (input, message) =
-        take_until("\n")(input).or_else(|_: nom::Err<nom::error::Error<&str>>| Ok(("", input)))?;
+    pub fn parse_log_line(&self, line: &str) -> Option<LogEntry> {
+        self.pattern.captures(line).map(|caps| LogEntry {
+            timestamp: caps[1].to_string(),
+            level: caps[2].to_string(),
+            message: caps[3].to_string(),
+        })
+    }
 
-    return Ok((
-        input,
-        LogEntry {
-            timestamp: date.to_string() + " " + &time.to_string(),
-            level: level.to_string(),
-            message: message.to_string(),
-        },
-    ));
-}
+    pub fn parse_log_file(&self, file_path: &str) -> Vec<LogEntry> {
+        let file = File::open(file_path).unwrap();
+        let reader = BufReader::new(file);
+        reader
+            .lines()
+            .map(|line| self.parse_log_line(&line.unwrap()))
+            .filter(|line| line.is_some())
+            .map(|line| line.unwrap())
+            .collect()
+    }
 
-#[pyfunction]
-fn parse_log_line(input: &str) -> Option<LogEntry> {
-    let (remaining, entry) = _parse_log_line(input).ok()?;
-    if remaining.is_empty() {
-        Some(entry)
-    } else {
-        None
+    pub fn parse_log_lines_no_return(&self, file_path: &str) {
+        let file = File::open(file_path).unwrap();
+        let reader = BufReader::new(file);
+        let lines = reader
+            .lines()
+            .map(|line| self.parse_log_line(&line.unwrap()))
+            .filter(|line| line.is_some())
+            .map(|line| line.unwrap())
+            .collect::<Vec<LogEntry>>();
+        lines.iter().count();
     }
 }
+
+// // --- Rust Parsing Function ---
+// fn parse_log_line(input: &str) -> Option<LogEntry> {
+//     let pattern =
+//         Regex::new(r"\[(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})\] (INFO|WARN|ERROR|DEBUG): (.*)")
+//             .unwrap();
+
+//     pattern.captures(input).map(|caps| LogEntry {
+//         timestamp: caps[1].to_string(),
+//         level: caps[2].to_string(),
+//         message: caps[3].to_string(),
+//     })
+// }
+
+// #[pyfunction]
+// #[pyo3(name = "parse_log_line")]
+// fn parse_log_line_py(input: &str) -> Option<LogEntry> {
+//     parse_log_line(input)
+// }
+
+// #[pyfunction]
+// fn parse_log_file(file_path: &str) -> Vec<LogEntry> {
+//     let file = File::open(file_path).unwrap();
+//     let reader = BufReader::new(file);
+//     reader
+//         .lines()
+//         .map(|line| parse_log_line(&line.unwrap()))
+//         .filter(|line| line.is_some())
+//         .map(|line| line.unwrap())
+//         .collect()
+// }
+
 // --- PyO3 Module Definition ---
 #[pymodule(name = "rslib")]
 fn rslib(m: &Bound<'_, PyModule>) -> PyResult<()> {
-    m.add_function(wrap_pyfunction!(parse_log_line, m)?)?;
+    // m.add_function(wrap_pyfunction!(parse_log_line_py, m)?)?;
+    // m.add_function(wrap_pyfunction!(parse_log_file, m)?)?;
+    m.add_class::<Parser>()?;
     m.add_class::<LogEntry>()?;
     Ok(())
 }
@@ -73,7 +113,7 @@ fn rslib(m: &Bound<'_, PyModule>) -> PyResult<()> {
 // --- Rust Tests ---
 #[cfg(test)]
 mod tests {
-    use super::*; // Import items from the parent module
+    use super::*;
     use pretty_assertions::assert_eq;
 
     #[test]
@@ -84,8 +124,10 @@ mod tests {
             level: "INFO".to_string(),
             message: "User logged in.".to_string(),
         };
-        let (remaining, parsed) = _parse_log_line(line).expect("Should parse successfully");
-        assert_eq!(remaining, ""); // Ensure the entire line was consumed
+        let parser = Parser::new();
+        let parsed = parser
+            .parse_log_line(line)
+            .expect("Should parse successfully");
         assert_eq!(parsed, expected);
     }
 
@@ -97,45 +139,61 @@ mod tests {
             level: "WARN".to_string(),
             message: "Disk space low.".to_string(),
         };
-        let (remaining, parsed) = _parse_log_line(line).expect("Should parse successfully");
-        assert_eq!(remaining, "");
+        let parser = Parser::new();
+        let parsed = parser
+            .parse_log_line(line)
+            .expect("Should parse successfully");
         assert_eq!(parsed, expected);
     }
 
     #[test]
     fn test_parse_valid_error_log_no_newline() {
-        // Test a line that doesn't end with a newline
         let line = "[2025-05-22 09:14:52] ERROR: Database connection failed. Retrying...";
         let expected = LogEntry {
             timestamp: "2025-05-22 09:14:52".to_string(),
             level: "ERROR".to_string(),
             message: "Database connection failed. Retrying...".to_string(),
         };
-        let (remaining, parsed) = _parse_log_line(line).expect("Should parse successfully");
-        assert_eq!(remaining, "");
+        let parser = Parser::new();
+        let parsed = parser
+            .parse_log_line(line)
+            .expect("Should parse successfully");
         assert_eq!(parsed, expected);
     }
 
     #[test]
     fn test_parse_invalid_format() {
-        // These should result in an Err from nom
-        assert!(_parse_log_line("Invalid log line").is_err());
-        assert!(_parse_log_line("[2023-10-27] INFO: Missing time").is_err());
-        assert!(_parse_log_line("2023-10-27 14:30:05 INFO: No brackets").is_err());
-        assert!(_parse_log_line("[2023-10-27 14:30:05] HELLO: Unknown level").is_err()); // 'HELLO' not in regex
+        let parser = Parser::new();
+        assert!(parser.parse_log_line("Invalid log line").is_none());
+        assert!(
+            parser
+                .parse_log_line("[2023-10-27] INFO: Missing time")
+                .is_none()
+        );
+        assert!(
+            parser
+                .parse_log_line("2023-10-27 14:30:05 INFO: No brackets")
+                .is_none()
+        );
+        assert!(
+            parser
+                .parse_log_line("[2023-10-27 14:30:05] HELLO: Unknown level")
+                .is_none()
+        );
     }
 
     #[test]
     fn test_parse_empty_line() {
-        assert!(_parse_log_line("").is_err());
-        assert!(_parse_log_line("   ").is_err());
+        let parser = Parser::new();
+        assert!(parser.parse_log_line("").is_none());
+        assert!(parser.parse_log_line("   ").is_none());
     }
 
-    // --- Test PyO3 interface ---
     #[test]
     fn test_py_parse_valid_log() {
         let line = "[2023-10-27 14:30:05] INFO: User logged in.";
-        let (_, entry) = _parse_log_line(line).unwrap(); // Unwrap the PyResult
+        let parser = Parser::new();
+        let entry = parser.parse_log_line(line).unwrap();
         assert_eq!(entry.timestamp, "2023-10-27 14:30:05");
         assert_eq!(entry.level, "INFO");
         assert_eq!(entry.message, "User logged in.");
@@ -144,7 +202,8 @@ mod tests {
     #[test]
     fn test_py_parse_invalid_log() {
         let line = "This is not a log line.";
-        let result = _parse_log_line(line);
-        assert!(result.is_err());
+        let parser = Parser::new();
+        let result = parser.parse_log_line(line);
+        assert!(result.is_none());
     }
 }
