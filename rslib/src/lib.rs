@@ -1,8 +1,8 @@
 use pyo3::prelude::{
     Bound, PyModule, PyResult, pyclass, pyfunction, pymethods, pymodule, wrap_pyfunction,
 };
-// use pyo3::prelude::*;
 use pyo3::types::PyModuleMethods;
+use rand::Rng;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
 
@@ -67,38 +67,22 @@ impl Parser {
             .collect::<Vec<LogEntry>>();
         lines.iter().count();
     }
+
+    pub fn estimate_pi(&self, num_samples: i32) -> f64 {
+        let mut rng = rand::rng();
+        let mut inside_circle = 0;
+
+        for _ in 0..num_samples {
+            let x: f64 = rng.random();
+            let y: f64 = rng.random();
+            let distance_squared = x.powi(2) + y.powi(2);
+            if distance_squared <= 1.0 {
+                inside_circle += 1;
+            }
+        }
+        (inside_circle as f64 / num_samples as f64) * 4.0
+    }
 }
-
-// // --- Rust Parsing Function ---
-// fn parse_log_line(input: &str) -> Option<LogEntry> {
-//     let pattern =
-//         Regex::new(r"\[(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})\] (INFO|WARN|ERROR|DEBUG): (.*)")
-//             .unwrap();
-
-//     pattern.captures(input).map(|caps| LogEntry {
-//         timestamp: caps[1].to_string(),
-//         level: caps[2].to_string(),
-//         message: caps[3].to_string(),
-//     })
-// }
-
-// #[pyfunction]
-// #[pyo3(name = "parse_log_line")]
-// fn parse_log_line_py(input: &str) -> Option<LogEntry> {
-//     parse_log_line(input)
-// }
-
-// #[pyfunction]
-// fn parse_log_file(file_path: &str) -> Vec<LogEntry> {
-//     let file = File::open(file_path).unwrap();
-//     let reader = BufReader::new(file);
-//     reader
-//         .lines()
-//         .map(|line| parse_log_line(&line.unwrap()))
-//         .filter(|line| line.is_some())
-//         .map(|line| line.unwrap())
-//         .collect()
-// }
 
 // --- PyO3 Module Definition ---
 #[pymodule(name = "rslib")]

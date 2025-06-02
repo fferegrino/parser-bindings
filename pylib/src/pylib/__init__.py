@@ -1,5 +1,6 @@
 import re
 from dataclasses import dataclass
+import random
 
 PATTERN = re.compile(
     r"\[(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})\] (INFO|WARN|ERROR|DEBUG): (.*)"
@@ -34,3 +35,13 @@ class Parser:
         with open(file_path, "r") as file:
             for line in file:
                 value = self.parse_log_line(line)
+
+    def estimate_pi(self, num_samples: int) -> float:
+        inside_circle = 0
+        for _ in range(num_samples):
+            x = random.uniform(0, 1)
+            y = random.uniform(0, 1)
+            distance = x**2 + y**2
+            if distance <= 1:
+                inside_circle += 1
+        return (inside_circle / num_samples) * 4

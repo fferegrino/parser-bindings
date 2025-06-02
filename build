@@ -2,7 +2,7 @@
 
 # Build Rust library
 cd rslib
-uv run maturin build
+uv run maturin build --release
 cd ..
 
 # Build Python library
