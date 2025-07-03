@@ -48,3 +48,15 @@ def test_parse_empty_line():
     parser = Parser()
     assert parser.parse_log_line("   ") == None
     assert parser.parse_log_line("") == None
+
+
+def test_estimate_pi():
+    parser = Parser()
+    pi_estimate = parser.estimate_pi(100000)
+    assert 3.1 < pi_estimate < 3.16, f"Estimated pi is out of range: {pi_estimate}"
+
+
+def test_estimate_pi_parallel():
+    parser = Parser()
+    pi_estimate = parser.estimate_pi_parallel(100000)
+    assert 3.1 < pi_estimate < 3.16, f"Estimated pi is out of range: {pi_estimate}"

@@ -5,6 +5,7 @@ use pyo3::types::PyModuleMethods;
 use rand::Rng;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
+use rayon::prelude::*;
 
 use regex::Regex;
 
@@ -82,13 +83,27 @@ impl Parser {
         }
         (inside_circle as f64 / num_samples as f64) * 4.0
     }
+
+    pub fn estimate_pi_parallel(&self, num_samples: i32) -> f64 {
+        let mut inside_circle = 0;
+
+        (0..num_samples)
+            .into_par_iter()
+            .map(|_| {
+                let mut rng = rand::rng();
+                let x: f64 = rng.random();
+                let y: f64 = rng.random();
+                let distance_squared = x.powi(2) + y.powi(2);
+                distance_squared <= 1.0
+            })
+            .filter(|&inside| inside)
+            .count() as f64 / num_samples as f64 * 4.0
+    }
 }
 
 // --- PyO3 Module Definition ---
 #[pymodule(name = "rslib")]
 fn rslib(m: &Bound<'_, PyModule>) -> PyResult<()> {
-    // m.add_function(wrap_pyfunction!(parse_log_line_py, m)?)?;
-    // m.add_function(wrap_pyfunction!(parse_log_file, m)?)?;
     m.add_class::<Parser>()?;
     m.add_class::<LogEntry>()?;
     Ok(())
